@@ -22,18 +22,6 @@ static mars::comm::Mutex sg_wifiinfo_mutex;
 namespace mars {
 namespace comm {
 
-static std::function<bool(std::string&)> g_new_wifi_id_cb;
-static mars::comm::Mutex wifi_id_mutex;
-
-void SetWiFiIdCallBack(std::function<bool(std::string&)> _cb) {
-    mars::comm::ScopedLock lock(wifi_id_mutex);
-    g_new_wifi_id_cb = _cb;
-}
-void ResetWiFiIdCallBack() {
-    mars::comm::ScopedLock lock(wifi_id_mutex);
-    g_new_wifi_id_cb = NULL;
-}
-
 bool getProxyInfo(int& port, std::string& strProxy, const std::string& _host) {
     xverbose_function();
 
@@ -45,7 +33,7 @@ bool getCurRadioAccessNetworkInfo(struct RadioAccessNetworkInfo& info) {
     return false;
 }
 
-int getNetInfo() {
+NetType getNetInfo(bool realtime /* = false*/) {
     xverbose_function();
 
     return isNetworkConnected() ? kWifi : kNoNet;
@@ -71,7 +59,7 @@ bool getCurWifiInfo(WifiInfo& wifiInfo, bool _force_refresh) {
     return false;
 }
 
-bool getCurSIMInfo(SIMInfo& bsinfo) {
+bool getCurSIMInfo(SIMInfo& simInfo, bool realtime) {
     return false;
 }
 
@@ -79,17 +67,23 @@ bool getAPNInfo(APNInfo& info) {
     return false;
 }
 
-int getNetTypeForStatistics() {
-    int type = getNetInfo();
+NetTypeForStatistics getNetTypeForStatistics() {
+    NetType type = getNetInfo();
     if (mars::comm::kWifi == type) {
-        return (int)mars::comm::NetTypeForStatistics::NETTYPE_WIFI;
+        return mars::comm::NetTypeForStatistics::NETTYPE_WIFI;
     }
 
-    return (int)mars::comm::NetTypeForStatistics::NETTYPE_NON;
+    return mars::comm::NetTypeForStatistics::NETTYPE_NON;
 }
 
-        void OnPlatformNetworkChange(){
-        }
+void OnPlatformNetworkChange() {
+}
+
+int OSVerifyCertificate(const std::string& hostname, const std::vector<std::string>& certschain) {
+    // todo tiemuhuaguo
+    return 0;
+}
+
 }  // namespace comm
 
 namespace xlog {

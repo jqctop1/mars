@@ -21,6 +21,7 @@
 #define COMM_PLATFORM_COMM_H_
 
 #include <functional>
+#include <memory>
 #include <string>
 
 #ifdef ANDROID
@@ -38,9 +39,9 @@ enum NetType { kNoNet = -1, kWifi = 1, kMobile = 2, kOtherNet = 3 };
 
 void OnPlatformNetworkChange();
 
-int getNetInfo();
+NetType getNetInfo(bool realtime = false);
 
-enum class NetTypeForStatistics {
+enum NetTypeForStatistics {
     NETTYPE_NON = -1,
     NETTYPE_NOT_WIFI = 0,
     NETTYPE_WIFI = 1,
@@ -51,21 +52,46 @@ enum class NetTypeForStatistics {
     NETTYPE_UNKNOWN = 6,  // ignore, DO NOT reuse
     NETTYPE_5G = 7,
 };
-int getNetTypeForStatistics();
 
-bool getCurRadioAccessNetworkInfo(struct RadioAccessNetworkInfo& _info);
+NetTypeForStatistics getNetTypeForStatistics();
+enum ENewNetType {
+    NEW_NETTYPE_UNKNOW = 0,
+    NEW_NETTYPE_WIFI = 1,
+    NEW_NETTYPE_2G = 2,
+    NEW_NETTYPE_3G = 3,
+    NEW_NETTYPE_4G = 4,
+    NEW_NETTYPE_5G = 5,
+};
+inline ENewNetType getAppNetType() {
+    NetTypeForStatistics type = getNetTypeForStatistics();
+    switch (type) {
+        case NetTypeForStatistics::NETTYPE_WIFI:
+            return NEW_NETTYPE_WIFI;
+        case NetTypeForStatistics::NETTYPE_2G:
+            return NEW_NETTYPE_2G;
+        case NetTypeForStatistics::NETTYPE_3G:
+            return NEW_NETTYPE_3G;
+        case NetTypeForStatistics::NETTYPE_4G:
+            return NEW_NETTYPE_4G;
+        case NetTypeForStatistics::NETTYPE_5G:
+            return NEW_NETTYPE_5G;
+        default:
+            return NEW_NETTYPE_UNKNOW;
+    }
+}
 
 struct WifiInfo {
     std::string ssid;
     std::string bssid;
 };
+
 bool getCurWifiInfo(WifiInfo& _wifi_info, bool _force_refresh = false);
 
 struct SIMInfo {
     std::string isp_code;
     std::string isp_name;
 };
-bool getCurSIMInfo(SIMInfo& _sim_info);
+bool getCurSIMInfo(SIMInfo& _sim_info, bool realtime = false);
 
 struct APNInfo {
     APNInfo() : nettype(kNoNet - 1), sub_nettype(0), extra_info("") {
@@ -74,6 +100,7 @@ struct APNInfo {
     int sub_nettype;
     std::string extra_info;
 };
+
 bool getAPNInfo(APNInfo& info);
 #if __cplusplus >= 201103L
 #define __CXX11_CONSTEXPR__ constexpr
@@ -215,72 +242,112 @@ struct RadioAccessNetworkInfo {
     bool IsNR() const {
         return radio_access_network == NR || radio_access_network == NRNSA;
     }
+    bool IsWiFi() const {
+        return radio_access_network == WIFI;
+    }
 };
 
 bool getCurRadioAccessNetworkInfo(RadioAccessNetworkInfo& _raninfo);
 
-unsigned int getSignal(bool isWifi);
+uint32_t getSignal(bool isWifi);
+
 bool isNetworkConnected();
 
 bool getifaddrs_ipv4_hotspot(std::string& _ifname, std::string& _ifip);
 
-void SetWiFiIdCallBack(std::function<bool(std::string&)> _cb);
+std::function<bool(std::string&)> SetWiFiIdCallBack(std::function<bool(std::string&)> _cb);
 void ResetWiFiIdCallBack();
+bool IsWiFiIdCallBackExists();
 
-inline int getCurrNetLabel(std::string& netInfo) {
-    netInfo = "defalut";
-    int netId = getNetInfo();
+extern const char* kMarsDefaultNetworkIDNetLabel;
+extern const char* kMarsNetworkIDNetLabelPrefix;
+extern const char* kMarsWifiNetLabelPrefix;
+extern const char* kMarsMobileNetLabelPrefix;
+extern const char* kMarsDefaultNetLabel;
 
-    if (netId == kNoNet) {
-        netInfo = "";
-        return netId;
-    }
-
-    switch (netId) {
-        case kWifi: {
-            WifiInfo wifiInfo;
-
-            if (getCurWifiInfo(wifiInfo)) {
-                netInfo = wifiInfo.ssid.empty() ? "empty_ssid" : wifiInfo.ssid;
-            } else {
-                netInfo = "no_ssid_wifi";
-            }
-
-            break;
-        }
-
-        case kMobile: {
-            SIMInfo simInfo;
-
-            if (getCurSIMInfo(simInfo)) {
-                netInfo = simInfo.isp_code.empty() ? "empty_ispCode" : simInfo.isp_code;
-            } else {
-                netInfo = "no_ispCode_mobile";
-            }
-
-            break;
-        }
-
-        case kOtherNet: {
-            netInfo = "other";
-            break;
-        }
-
-        default: {
-            break;
-        }
-    }
-
-    return netId;
-}
+int getCurrNetLabel(std::string& netInfo);
+int getNetworkIDLabel(std::string& netInfo);
+int getRealtimeNetLabel(std::string& netInfo);
 
 #ifdef __APPLE__
 void FlushReachability();
+
 float publiccomponent_GetSystemVersion();
-int OSVerifyCertificate(const std::string& hostname, const std::vector<std::string>& certschain);
 #endif
 
+class NetworkInfoCallback {
+ public:
+    NetworkInfoCallback() = default;
+    virtual ~NetworkInfoCallback() = default;
+    virtual bool getProxyInfo(int& port, std::string& strProxy, const std::string& _host) {
+        return false;
+    }
+    virtual bool getAPNInfo(APNInfo& info) {
+        return false;
+    }
+    virtual NetType getNetInfo(bool realtime) {
+        return kNoNet;
+    }
+    virtual NetTypeForStatistics getNetTypeForStatistics() {
+        return NETTYPE_NON;
+    }
+    virtual bool getCurRadioAccessNetworkInfo(struct RadioAccessNetworkInfo& _info) {
+        return false;
+    }
+    virtual bool getCurWifiInfo(WifiInfo& _wifi_info, bool _force_refresh) {
+        return false;
+    }
+    virtual bool getCurSIMInfo(SIMInfo& _sim_info, bool realtime) {
+        return false;
+    }
+    virtual uint32_t getSignal(bool isWifi) {
+        return -1;
+    }
+    virtual bool isNetworkConnected() {
+        return false;
+    }
+    virtual bool getIfAddrsIpv4HotSpot(std::string& _ifname, std::string& _ifip) {
+        return false;
+    }
+};
+void SetNetworkInfoCallback(const std::shared_ptr<NetworkInfoCallback>& _cb);
+
 #ifdef ANDROID
+#ifdef NATIVE_CALLBACK
+class AlarmCallback {
+ public:
+    AlarmCallback() = default;
+    ~AlarmCallback() = default;
+    virtual bool stopAlarm(int64_t id) {
+        return false;
+    }
+    virtual bool startAlarm(int type, int64_t id, int after) {
+        return false;
+    }
+};
+void SetAlarmCallback(const std::shared_ptr<AlarmCallback>& _cb);
+
+class WakeUpLockCallback {
+ public:
+    WakeUpLockCallback() = default;
+    ~WakeUpLockCallback() = default;
+    virtual void* wakeupLock_new() {
+        return nullptr;
+    }
+    virtual void wakeupLock_delete(void* _object) {
+    }
+    virtual void wakeupLock_Lock(void* _object) {
+    }
+    virtual void wakeupLock_Lock_Timeout(void* _object, int64_t _timeout) {
+    }
+    virtual void wakeupLock_Unlock(void* _object) {
+    }
+    virtual bool wakeupLock_IsLocking(void* _object) {
+        return false;
+    }
+};
+void SetWakeUpLockCallback(const std::shared_ptr<WakeUpLockCallback>& _cb);
+#endif  // #ifdef NATIVE_CALLBACK
 bool startAlarm(int type, int64_t id, int after);
 bool stopAlarm(int64_t id);
 
@@ -291,76 +358,72 @@ void wakeupLock_Lock_Timeout(void* _object, int64_t _timeout);
 void wakeupLock_Unlock(void* _object);
 bool wakeupLock_IsLocking(void* _object);
 
-#ifdef NATIVE_CALLBACK
-#include <memory>
-class PlatformNativeCallback {
- public:
-    PlatformNativeCallback() = default;
-    virtual ~PlatformNativeCallback() = default;
-    bool getProxyInfo(int& port, std::string& strProxy, const std::string& _host) {
-        return false;
-    }
-    bool getAPNInfo(APNInfo& info) {
-        return false;
-    }
-    virtual int getNetInfo() {
-        return -1;
-    }
-    virtual int getNetTypeForStatistics();
-    virtual bool getCurRadioAccessNetworkInfo(struct RadioAccessNetworkInfo& _info) {
-        return false;
-    }
-    virtual bool getCurWifiInfo(WifiInfo& _wifi_info, bool _force_refresh = false) {
-        return false;
-    }
-    virtual bool getCurSIMInfo(SIMInfo& _sim_info) {
-        return false;
-    }
-    virtual unsigned int getSignal(bool isWifi) {
-        return -1;
-    }
-    virtual bool isNetworkConnected() {
-        return false;
-    }
-    virtual bool getifaddrs_ipv4_hotspot(std::string& _ifname, std::string& _ifip) {
-        return false;
-    }
-    virtual int getCurrNetLabel(std::string& netInfo) {
-        return -1;
-    }
-
-    virtual bool startAlarm(int type, int64_t id, int after) {
-        return false;
-    }
-    virtual bool stopAlarm(int64_t id) {
-        return false;
-    }
-    void* wakeupLock_new() {
-        return nullptr;
-    }
-    void wakeupLock_delete(void* _object) {
-    }
-    void wakeupLock_Lock(void* _object) {
-    }
-    void wakeupLock_Lock_Timeout(void* _object, int64_t _timeout) {
-    }
-    void wakeupLock_Unlock(void* _object) {
-    }
-    bool wakeupLock_IsLocking(void* _object) {
-        return false;
-    }
-};
-extern void SetPlatformNativeCallbackInstance(std::shared_ptr<PlatformNativeCallback> _cb);
-
-#endif
-
-#endif
-
-#ifdef ANDROID
 std::string GetCurrentProcessName();
-#endif
+#endif  // #ifdef ANDROID
 
 }  // namespace comm
 }  // namespace mars
+
+inline bool IsApple() {
+#if defined(__APPLE__)
+    return true;
+#else
+    return false;
+#endif
+}
+inline bool IsOSX() {
+#if !defined(__APPLE__)
+    return false;
+#else
+#include "TargetConditionals.h"
+#if TARGET_IPHONE_SIMULATOR || TARGET_OS_IPHONE
+    return false;
+#else
+    return true;
+#endif
+#endif
+}
+inline bool IsIOS() {
+#if defined(__APPLE__)
+#include "TargetConditionals.h"
+#if TARGET_IPHONE_SIMULATOR || TARGET_OS_IPHONE
+    return true;
+#else
+    return false;
+#endif
+#else
+    return false;
+#endif
+}
+inline bool IsWindows() {
+#if defined(_WIN32)
+    return true;
+#else
+    return false;
+#endif
+}
+inline bool IsAndroid() {
+#if defined(__ANDROID__)
+    return true;
+#else
+    return false;
+#endif
+}
+inline bool IsOHOS() {
+#if defined(OHOS)
+    return true;
+#else
+    return false;
+#endif
+}
+inline bool IsLinux() {
+#if defined(__ANDROID__) || defined(OHOS) || defined(__APPLE__)
+    return false;
+#elif defined(LINUX) || defined(__linux) || defined(__linux__) || defined(__LINUX) || defined(__LINUX__)
+    return true;
+#else
+    return false;
+#endif
+}
 
 #endif /* COMM_PLATFORM_COMM_H_ */

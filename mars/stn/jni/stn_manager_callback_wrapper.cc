@@ -50,7 +50,7 @@ bool StnManagerJniCallback::MakesureAuthed(const std::string& _host, const std::
 }
 
 DEFINE_FIND_METHOD(KC2Java_trafficData, KC2Java, "trafficData", "(II)V")
-void StnManagerJniCallback::TrafficData(ssize_t _send, ssize_t _recv) {
+void StnManagerJniCallback::TrafficData(int64_t _send, int64_t _recv) {
     VarCache* cache_instance = VarCache::Singleton();
     ScopeJEnv scope_jenv(cache_instance->GetJvm());
     JNIEnv* env = scope_jenv.GetEnv();
@@ -190,13 +190,14 @@ bool StnManagerJniCallback::Req2Buf(uint32_t _taskid,
     return ret;
 }
 
-DEFINE_FIND_METHOD(KC2Java_buf2Resp, KC2Java, "buf2Resp", "(ILjava/lang/Object;Ljava/lang/String;[B[II[I)I")
+DEFINE_FIND_METHOD(KC2Java_buf2Resp, KC2Java, "buf2Resp", "(ILjava/lang/Object;Ljava/lang/String;[B[I[II[I)I")
 int StnManagerJniCallback::Buf2Resp(uint32_t _taskid,
                                     void* const _user_context,
                                     const std::string& _user_id,
                                     const AutoBuffer& _inbuffer,
                                     const AutoBuffer& _extend,
                                     int& _error_code,
+                                    uint64_t& _flags,
                                     const int _channel_select,
                                     unsigned short& server_sequence_id) {
     VarCache* cache_instance = VarCache::Singleton();
@@ -210,6 +211,7 @@ int StnManagerJniCallback::Buf2Resp(uint32_t _taskid,
         xdebug2(TSF "the decodeBuffer.Lenght() <= 0");
     }
     jintArray errcode_array = env->NewIntArray(1);
+    jintArray flags_array = env->NewIntArray(1);
     jintArray sequence_array = env->NewIntArray(1);
     jint ret = JNU_CallMethodByMethodInfo(env,
                                           callback_inst_,
@@ -219,6 +221,7 @@ int StnManagerJniCallback::Buf2Resp(uint32_t _taskid,
                                           ScopedJstring(env, _user_id.c_str()).GetJstr(),
                                           resp_buf_jba,
                                           errcode_array,
+                                          flags_array,
                                           _channel_select,
                                           sequence_array)
                    .i;
@@ -229,6 +232,12 @@ int StnManagerJniCallback::Buf2Resp(uint32_t _taskid,
     _error_code = errcode[0];
     env->ReleaseIntArrayElements(errcode_array, errcode, 0);
     env->DeleteLocalRef(errcode_array);
+
+    jint* flags_ptr = env->GetIntArrayElements(flags_array, NULL);
+    _flags = flags_ptr[0];
+    env->ReleaseIntArrayElements(flags_array, flags_ptr, 0);
+    env->DeleteLocalRef(flags_array);
+
     jint* sequence = env->GetIntArrayElements(sequence_array, NULL);
     server_sequence_id = sequence[0];
     env->ReleaseIntArrayElements(sequence_array, sequence, 0);
@@ -281,11 +290,17 @@ int StnManagerJniCallback::OnTaskEnd(uint32_t _taskid,
     jfieldID fid_startHandshakeTime = env->GetFieldID(cgiProfileCls, "startHandshakeTime", "J");
     jfieldID fid_handshakeSuccessfulTime = env->GetFieldID(cgiProfileCls, "handshakeSuccessfulTime", "J");
     jfieldID fid_startSendPacketTime = env->GetFieldID(cgiProfileCls, "startSendPacketTime", "J");
+    jfieldID fid_sendPacketFinishedTime = env->GetFieldID(cgiProfileCls, "sendPacketFinishedTime", "J");
     jfieldID fid_startReadPacketTime = env->GetFieldID(cgiProfileCls, "startReadPacketTime", "J");
     jfieldID fid_readPacketFinishedTime = env->GetFieldID(cgiProfileCls, "readPacketFinishedTime", "J");
+    jfieldID fid_startEncodePacketTime = env->GetFieldID(cgiProfileCls, "startEncodePacketTime", "J");
+    jfieldID fid_encodePacketFinishedTime = env->GetFieldID(cgiProfileCls, "encodePacketFinishedTime", "J");
+    jfieldID fid_startDecodePacketTime = env->GetFieldID(cgiProfileCls, "startDecodePacketTime", "J");
+    jfieldID fid_decodePacketFinishedTime = env->GetFieldID(cgiProfileCls, "decodePacketFinishedTime", "J");
     jfieldID fid_rtt = env->GetFieldID(cgiProfileCls, "rtt", "J");
     jfieldID fid_channelType = env->GetFieldID(cgiProfileCls, "channelType", "I");
     jfieldID fid_protocolType = env->GetFieldID(cgiProfileCls, "protocolType", "I");
+    jfieldID fid_netType = env->GetFieldID(cgiProfileCls, "netType", "Ljava/lang/String;");
 
     uint64_t tls_start_time = _profile.tls_handshake_successful_time == 0 ? 0 : _profile.start_tls_handshake_time;
     env->SetLongField(jobj_cgiItem, fid_taskStartTime, _profile.start_time);
@@ -294,11 +309,18 @@ int StnManagerJniCallback::OnTaskEnd(uint32_t _taskid,
     env->SetLongField(jobj_cgiItem, fid_startHandshakeTime, tls_start_time);
     env->SetLongField(jobj_cgiItem, fid_handshakeSuccessfulTime, _profile.tls_handshake_successful_time);
     env->SetLongField(jobj_cgiItem, fid_startSendPacketTime, _profile.start_send_packet_time);
+    env->SetLongField(jobj_cgiItem, fid_sendPacketFinishedTime, _profile.send_packet_finished_time);
     env->SetLongField(jobj_cgiItem, fid_startReadPacketTime, _profile.start_read_packet_time);
     env->SetLongField(jobj_cgiItem, fid_readPacketFinishedTime, _profile.read_packet_finished_time);
+    env->SetLongField(jobj_cgiItem, fid_startEncodePacketTime, _profile.start_encode_packet_time);
+    env->SetLongField(jobj_cgiItem, fid_encodePacketFinishedTime, _profile.encode_packet_finished_time);
+    env->SetLongField(jobj_cgiItem, fid_startDecodePacketTime, _profile.start_decode_packet_time);
+    env->SetLongField(jobj_cgiItem, fid_decodePacketFinishedTime, _profile.decode_packet_finished_time);
     env->SetLongField(jobj_cgiItem, fid_rtt, _profile.rtt);
     env->SetIntField(jobj_cgiItem, fid_channelType, _profile.channel_type);
     env->SetIntField(jobj_cgiItem, fid_protocolType, _profile.transport_protocol);
+    env->SetObjectField(jobj_cgiItem, fid_netType, ScopedJstring(env, _profile.nettype.c_str()).GetJstr());
+
     int ret = (int)JNU_CallMethodByMethodInfo(env,
                                               callback_inst_,
                                               KC2Java_onTaskEnd,

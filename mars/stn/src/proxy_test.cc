@@ -162,7 +162,7 @@ int ProxyTest::__ReadWrite(SOCKET _sock, const mars::comm::ProxyInfo& _proxy_inf
         char* dstbuf = (char*)malloc(dstlen);
         memset(dstbuf, 0, dstlen);
 
-        int retsize = Comm::EncodeBase64((unsigned char*)account_info.c_str(),
+        int retsize = mars::comm::EncodeBase64((unsigned char*)account_info.c_str(),
                                          (unsigned char*)dstbuf,
                                          (int)account_info.length());
         dstbuf[retsize] = '\0';
@@ -182,7 +182,7 @@ int ProxyTest::__ReadWrite(SOCKET _sock, const mars::comm::ProxyInfo& _proxy_inf
     req_builder.Request().Version(kVersion_1_1);
 
     req_builder.Fields().HeaderFiled(HeaderFields::MakeAcceptAll());
-    req_builder.Fields().HeaderFiled(HeaderFields::KStringUserAgent, HeaderFields::KStringMicroMessenger);
+    req_builder.Fields().HeaderFiled(HeaderFields::MakeUserAgentMicroMessage());
     req_builder.Fields().HeaderFiled(HeaderFields::MakeCacheControlNoCache());
     req_builder.Fields().HeaderFiled(HeaderFields::MakeConnectionClose());
     req_builder.Fields().HeaderFiled(HeaderFields::KStringHost, _host.c_str());
@@ -194,7 +194,7 @@ int ProxyTest::__ReadWrite(SOCKET _sock, const mars::comm::ProxyInfo& _proxy_inf
         char* dstbuf = (char*)malloc(dstlen);
         memset(dstbuf, 0, dstlen);
 
-        int retsize = Comm::EncodeBase64((unsigned char*)account_info.c_str(),
+        int retsize = mars::comm::EncodeBase64((unsigned char*)account_info.c_str(),
                                          (unsigned char*)dstbuf,
                                          (int)account_info.length());
         dstbuf[retsize] = '\0';

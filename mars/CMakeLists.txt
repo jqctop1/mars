@@ -6,6 +6,7 @@ message(STATUS "CMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}")
 include_directories(openssl/include)
 
 add_subdirectory(comm comm)
+add_subdirectory(boot boot)
 add_subdirectory(boost boost)
 add_subdirectory(app app)
 add_subdirectory(baseevent baseevent)
@@ -23,7 +24,7 @@ add_subdirectory(zstd/build/cmake/lib zstd)
 
 project (mars)
 
-include(comm/CMakeUtils.txt)
+include(comm/utils.cmake)
 
 include_directories(.)
 include_directories(..)
@@ -77,9 +78,10 @@ if(ANDROID)
                         app
                         baseevent
                         comm
+                        boot
                         mars-boost
                         marsxlog
-                        zstd
+                        libzstd_static
                         ${SSL_LIB}
                         ${CRYPT_LIB})
 endif()

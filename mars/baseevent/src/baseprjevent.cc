@@ -29,6 +29,11 @@ boost::signals2::signal<void(int _encoder_version)>& GetSignalOnInitBeforeOnCrea
     return SignalOnInitBeforeOnCreate;
 }
 
+boost::signals2::signal<void(int _encoder_version, std::string _encoder_name)>& GetSignalOnInitBeforeOnCreateV2() {
+    static boost::signals2::signal<void(int _encoder_version, std::string _encoder_name)> SignalOnInitBeforeOnCreateV2;
+    return SignalOnInitBeforeOnCreateV2;
+}
+
 boost::signals2::signal<void()>& GetSignalOnDestroy() {
     static boost::signals2::signal<void()> SignalOnDestroy;
     return SignalOnDestroy;
@@ -54,8 +59,8 @@ boost::signals2::signal<void()>& GetSignalOnNetworkChange() {
     return SignalOnNetworkChange;
 }
 
-boost::signals2::signal<void(const char* _tag, ssize_t _send, ssize_t _recv)>& GetSignalOnNetworkDataChange() {
-    static boost::signals2::signal<void(const char* _tag, ssize_t _send, ssize_t _recv)> SignalOnNetworkDataChange;
+boost::signals2::signal<void(const char* _tag, int64_t _send, int64_t _recv)>& GetSignalOnNetworkDataChange() {
+    static boost::signals2::signal<void(const char* _tag, int64_t _send, int64_t _recv)> SignalOnNetworkDataChange;
     return SignalOnNetworkDataChange;
 }
 

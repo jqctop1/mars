@@ -60,7 +60,8 @@ LongLinkTaskManager::LongLinkTaskManager(mars::boot::Context* _context,
                                          std::shared_ptr<NetSource> _netsource,
                                          ActiveLogic& _activelogic,
                                          DynamicTimeout& _dynamictimeout,
-                                         MessageQueue::MessageQueue_t _messagequeue_id)
+                                         MessageQueue::MessageQueue_t _messagequeue_id,
+                                         LongLinkEncoder* longlink_encoder)
 : context_(_context)
 , asyncreg_(MessageQueue::InstallAsyncHandler(_messagequeue_id))
 , lastbatcherrortime_(0)
@@ -77,7 +78,7 @@ LongLinkTaskManager::LongLinkTaskManager(mars::boot::Context* _context,
 #ifndef _WIN32
 , meta_mutex_(true)
 #endif
-{
+, default_longlink_encoder(longlink_encoder) {
     xdebug_function(TSF "mars2");
     xinfo_function(TSF "handler:(%_,%_)", asyncreg_.Get().queue, asyncreg_.Get().seq);
 }
@@ -102,8 +103,8 @@ LongLinkTaskManager::~LongLinkTaskManager() {
 bool LongLinkTaskManager::StartTask(const Task& _task, int _channel) {
     xverbose_function();
     xdebug2(TSF "taskid=%0", _task.taskid);
-
-    TaskProfile task(_task);
+    PrepareProfile profile;
+    TaskProfile task(_task, profile);
     task.link_type = _channel;
 
     if (_channel == Task::kChannelMinorLong) {  // already fixed host redirect, getted real host
@@ -458,7 +459,7 @@ void LongLinkTaskManager::__RunOnStartTask() {
 
         Task task = first->task;
         if (get_real_host_) {
-            get_real_host_(task.user_id, task.longlink_host_list, /*_strict_match=*/false);
+            get_real_host_(task.user_id, task.longlink_host_list, /*_strict_match=*/false, task.extra_info);
         }
         std::string host = "";
         if (!task.longlink_host_list.empty()) {
@@ -591,6 +592,7 @@ void LongLinkTaskManager::__RunOnStartTask() {
             AutoBuffer body;
             AutoBuffer extension;
             int err_code = 0;
+            uint64_t flags = 0;
             unsigned short server_sequence_id = 0;
             body.Write(intercept_data.data(), intercept_data.length());
             first->transfer_profile.received_size = body.Length();
@@ -602,6 +604,7 @@ void LongLinkTaskManager::__RunOnStartTask() {
                                                                            body,
                                                                            extension,
                                                                            err_code,
+                                                                           flags,
                                                                            longlink->Config().link_type,
                                                                            server_sequence_id);
             xinfo2(TSF "server_sequence_id:%_", server_sequence_id);
@@ -1000,6 +1003,7 @@ void LongLinkTaskManager::__OnResponse(const std::string& _name,
     it->transfer_profile.last_receive_pkg_time = ::gettickcount();
 
     int err_code = 0;
+    uint64_t flags = 0;
     unsigned short server_sequence_id = 0;
 
     int handle_type = context_->GetManager<StnManager>()->Buf2Resp(it->task.taskid,
@@ -1008,6 +1012,7 @@ void LongLinkTaskManager::__OnResponse(const std::string& _name,
                                                                    body,
                                                                    extension,
                                                                    err_code,
+                                                                   flags,
                                                                    longlink_meta->Config().link_type,
                                                                    server_sequence_id);
     if (should_intercept_result_ && should_intercept_result_(err_code)) {
@@ -1160,7 +1165,7 @@ std::shared_ptr<LongLinkMetaData> LongLinkTaskManager::GetLongLinkNoLock(const s
 
 void LongLinkTaskManager::FixMinorRealhost(Task& _task) {
     if (get_real_host_) {
-        get_real_host_(_task.user_id, _task.minorlong_host_list, /*_strict_match=*/false);
+        get_real_host_(_task.user_id, _task.minorlong_host_list, /*_strict_match=*/false, _task.extra_info);
     }
 }
 
@@ -1175,7 +1180,11 @@ bool LongLinkTaskManager::AddMinorLink(const std::vector<std::string>& _hosts) {
     defaultConfig.is_keep_alive = true;
     defaultConfig.host_list = _hosts;
     defaultConfig.link_type = Task::kChannelMinorLong;
-    defaultConfig.longlink_encoder = &gDefaultLongLinkEncoder;
+    if (default_longlink_encoder) {
+        defaultConfig.longlink_encoder = default_longlink_encoder;
+    } else {
+        defaultConfig.longlink_encoder = &gDefaultLongLinkEncoder;
+    }
 
     return AddLongLink(defaultConfig);
 }
@@ -1201,7 +1210,11 @@ bool LongLinkTaskManager::IsMinorAvailable(const Task& _task) {
 }
 
 std::shared_ptr<LongLinkMetaData> LongLinkTaskManager::DefaultLongLink() {
+    if (already_release_manager_)
+        return nullptr;
     MetaScopedLock lock(meta_mutex_);
+    if (already_release_manager_)
+        return nullptr;
     for (auto& item : longlink_metas_) {
         if (item.second->Config().IsMain()) {
             return item.second;

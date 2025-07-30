@@ -28,6 +28,7 @@
 #define DEF_TASK_TIME_OUT (40 * 1000)
 #define DEF_TASK_RETRY_COUNT (1)
 #define DEF_TASK_RETRY_INTERNAL (1 * 1000)
+#define DEF_TASK_RUN_LOOP_TIMING (1 * 1000)
 
 // Heartbeart Range
 #define MinHeartInterval (3 * 60 * 1000 + 30 * 1000)  // 3.5 minute
@@ -39,8 +40,9 @@
 
 #define MaxHeartFailCount (2)
 #define BaseSuccCount (5)
-#define NetStableTestCount (3)  // We think it's time to test after NetStableCount times heartbeat using
-                                // MinHeartInterval
+#define NetStableTestCount \
+    (3)  // We think it's time to test after NetStableCount times heartbeat using
+         // MinHeartInterval
 
 // signalling transmits timeout related constants
 const static unsigned int kBaseFirstPackageWifiTimeout = 12 * 1000;
@@ -105,36 +107,46 @@ const static unsigned int kLonglinkConnMax = 3;
 const static unsigned int kShortlinkConnTimeout = 10 * 1000;
 const static unsigned int kShortlinkConnInterval = 2.5 * 1000;
 
-//#ifdef ANDROID
-const static std::string kKeyShortLinkWakeupLockEmptyCMD = "ShortLinkEmptyCMD";
+#ifdef ANDROID
+const static char* const kKeyShortLinkWakeupLockEmptyCMD = "ShortLinkEmptyCMD";
 const static unsigned int kShortLinkWakeupLockEmptyCMD = 500;
 
-const static std::string kKeyShortLinkWakeupLockRunCMD = "ShortLinkRunCMD";
+const static char* const kKeyShortLinkWakeupLockRunCMD = "ShortLinkRunCMD";
 const static unsigned int kShortLinkWakeupLockRunCMD = 60 * 1000;
 
-const static std::string kKeyLongLinkWakeupLockEmptyCMD = "LongLinkEmptyCMD";
+const static char* const kKeyLongLinkWakeupLockEmptyCMD = "LongLinkEmptyCMD";
 const static unsigned int kLongLinkWakeupLockEmptyCMD = 500;
 
-const static std::string kKeyLongLinkWakeupLockRunCMD = "LongLinkRunCMD";
+const static char* const kKeyLongLinkWakeupLockRunCMD = "LongLinkRunCMD";
 const static unsigned int kLongLinkWakeupLockRunCMD = 30 * 1000;
 
-const static std::string kKeyLongLinkWakeupLockOnAlarm = "LongLinkOnAlarm";
+const static char* const kKeyLongLinkWakeupLockOnAlarm = "LongLinkOnAlarm";
 const static unsigned int kLongLinkWakeupLockOnAlarm = 3 * 1000;
 
-const static std::string kKeyLongLinkWakeupLockBeforeConnection = "LongLinkBeforeConnection";
+const static char* const kKeyLongLinkWakeupLockBeforeConnection = "LongLinkBeforeConnection";
 const static unsigned int kLongLinkWakeupLockBeforeConnection = 40 * 1000;
 
-const static std::string kKeyLongLinkWakeupLockAfterConnection = "LongLinkAfterConnection";
+const static char* const kKeyLongLinkWakeupLockAfterConnection = "LongLinkAfterConnection";
 const static unsigned int kLongLinkWakeupLockAfterConnection = 1000;
 
-const static std::string kKeyLongLinkWakeupLockAfterReadWrite = "LongLinkAfterReadWrite";
+const static char* const kKeyLongLinkWakeupLockAfterReadWrite = "LongLinkAfterReadWrite";
 const static unsigned int kLongLinkWakeupLockAfterReadWrite = 1000;
 
-const static std::string kKeyLongLinkWakeupLockNoopResp = "LongLinkNoopResp";
+const static char* const kKeyLongLinkWakeupLockNoopResp = "LongLinkNoopResp";
 const static unsigned int kLongLinkWakeupLockNoopResp = 500;
 
-const static std::string kKeyLongLinkWakeupLockNoopReq = "LongLinkNoopReq";
+const static char* const kKeyLongLinkWakeupLockNoopReq = "LongLinkNoopReq";
 const static unsigned int kLongLinkWakeupLockNoopReq = 8 * 1000;
-//#endif
+
+const static char* const kKeyShortLinkWakeupLockBefroeCMD = "ShortLinkBefroeCMD";
+const static unsigned int kShortLinkWakeupLockBefroeCMD = 500;
+
+const static char* const kKeyShortLinkWakeupLockNewDns = "ShortLinkNewDns";
+const static unsigned int kShortLinkWakeupLockNewDns = 5 * 1000;
+
+#endif
+
+// shortlink_task_manager
+const static char* const kKeyIsHandleReqRespBuffInWorker = "IsHandleReqRespBuffInWorker";
 
 #endif /* stn_config_h */

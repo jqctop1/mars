@@ -29,7 +29,6 @@
 #include <vector>
 
 #include "mars/comm/autobuffer.h"
-#include "mars/comm/projdef.h"
 
 namespace mars {
 namespace stn {
@@ -46,7 +45,6 @@ static const uint32_t kReservedTaskIDStart = 0xFFFFFFF0;
 
 static const unsigned short kReservedSequenceIdStart = 0xFFFF;
 
-
 enum PackerEncoderVersion {
     kOld = 1,
     kNew = 2,
@@ -54,8 +52,8 @@ enum PackerEncoderVersion {
 
 enum HostRedirectType {
     kFull = 0,
-    kFuzzy = 1,   //通过 fuzzy
-    kPrefix = 2,  //通过 isprefixmatch (这个很可能已经废弃)
+    kFuzzy = 1,   // 通过 fuzzy
+    kPrefix = 2,  // 通过 isprefixmatch (这个很可能已经废弃)
     kOther = 3
 };
 
@@ -139,22 +137,48 @@ struct Task {
     std::string function;
     std::string cgi_prefix;
     HostRedirectType redirect_type;
-    unsigned short client_sequence_id;//用于与后台上报对应的sequence id.
+    unsigned short client_sequence_id;  // 用于与后台上报对应的sequence id.
     unsigned short server_sequence_id;
+    bool need_realtime_netinfo;  // need realtime net info. for network-cross checking
+
+    // 解析host时透传回给使用方
+    std::map<std::string, std::string> extra_info;
 };
 
 struct CgiProfile {
+    //.所有time字段均为tickcount.
     uint64_t start_time = 0;
     uint64_t start_connect_time = 0;
     uint64_t connect_successful_time = 0;
     uint64_t start_tls_handshake_time = 0;
     uint64_t tls_handshake_successful_time = 0;
-    uint64_t start_send_packet_time = 0;
-    uint64_t start_read_packet_time = 0;
-    uint64_t read_packet_finished_time = 0;
+    uint64_t start_send_packet_time = 0;       // 首次发送请求(send)
+    uint64_t send_packet_finished_time = 0;    // 发送请求完成(send)
+    uint64_t start_read_packet_time = 0;       // 首次接收数据(recv)
+    uint64_t read_packet_finished_time = 0;    // 接收数据(recv)完成
+    uint64_t start_encode_packet_time = 0;     // 开始(req2buf)打包
+    uint64_t encode_packet_finished_time = 0;  // 打包(req2buf)完成
+    uint64_t start_decode_packet_time = 0;     // 开始(buf2resp)解包
+    uint64_t decode_packet_finished_time = 0;  // 解包(buf2resp)完成
+
     int channel_type = 0;
     int transport_protocol = 0;
     int rtt = 0;
+    std::string nettype;
+};
+
+struct ConnectCtrl {
+    int from_source = 0;  // DEFAULT;
+    unsigned interval_ms = 2500;
+    unsigned ipv4_timeout_ms = 10 * 1000;
+    unsigned ipv6_timeout_ms = 10 * 1000;
+    unsigned maxconn = 3;
+    unsigned ipv4_zerortt_check_ms = 300;
+    unsigned ipv6_zerortt_check_ms = 400;
+};
+struct ConnectPorts {
+    int from_source = 0;  // DEFAULT;
+    std::vector<uint16_t> ports;
 };
 
 struct LonglinkConfig {
@@ -179,7 +203,10 @@ struct LonglinkConfig {
     bool isMain;
     int link_type = Task::kChannelLong;
     int packer_encoder_version = PackerEncoderVersion::kOld;
-    std::vector<std::string> (*dns_func)(const std::string& _host, bool _longlink_host);
+    std::string packer_encoder_name = "";
+    std::vector<std::string> (*dns_func)(const std::string& _host,
+                                         bool _longlink_host,
+                                         const std::map<std::string, std::string>& _extra_info);
     bool need_tls;
 };
 
@@ -191,12 +218,14 @@ struct QuicParameters {
 };
 struct ShortlinkConfig {
  public:
-    ShortlinkConfig(bool _use_proxy, bool _use_tls) : use_proxy(_use_proxy), use_tls(_use_tls) {
+    ShortlinkConfig(bool _use_proxy, bool _use_tls, std::string _tls_group)
+    : use_proxy(_use_proxy), use_tls(_use_tls), tls_group(_tls_group) {
     }
     bool use_proxy = false;
     bool use_tls = true;
     bool use_quic = false;
     QuicParameters quic;
+    std::string tls_group;
 };
 
 enum TaskFailHandleType {
@@ -377,6 +406,7 @@ struct IPPortItem {
     IPSourceType source_type;
     std::string str_host;
     int transport_protocol = Task::kTransportProtocolTCP;  // tcp or quic?
+    unsigned from_source = 0;                              // default
 };
 
 /* mars2
@@ -384,7 +414,7 @@ struct IPPortItem {
 extern bool MakesureAuthed(const std::string& _host, const std::string& _user_id);
 
 //流量统计
-extern void TrafficData(ssize_t _send, ssize_t _recv);
+extern void TrafficData(int64_t _send, int64_t _recv);
 
 //底层询问上层该host对应的ip列表
 extern std::vector<std::string> OnNewDns(const std::string& _host, bool _longlink_host);
@@ -438,18 +468,18 @@ class Callback {
     }
     virtual bool MakesureAuthed(const std::string& _host, const std::string& _user_id) = 0;
 
-    //流量统计
-    virtual void TrafficData(ssize_t _send, ssize_t _recv) = 0;
+    // 流量统计
+    virtual void TrafficData(int64_t _send, int64_t _recv) = 0;
 
-    //底层询问上层该host对应的ip列表
+    // 底层询问上层该host对应的ip列表
     virtual std::vector<std::string> OnNewDns(const std::string& host, bool _longlink_host) = 0;
-    //网络层收到push消息回调
+    // 网络层收到push消息回调
     virtual void OnPush(const std::string& _channel_id,
                         uint32_t _cmdid,
                         uint32_t _taskid,
                         const AutoBuffer& _body,
                         const AutoBuffer& _extend) = 0;
-    //底层获取task要发送的数据
+    // 底层获取task要发送的数据
     virtual bool Req2Buf(uint32_t _taskid,
                          void* const _user_context,
                          const std::string& _user_id,
@@ -458,17 +488,18 @@ class Callback {
                          int& error_code,
                          const int channel_select,
                          const std::string& host,
-                         const unsigned short client_sequence_id) = 0;
-    //底层回包返回给上层解析
+                         const uint16_t client_sequence_id) = 0;
+    // 底层回包返回给上层解析
     virtual int Buf2Resp(uint32_t _taskid,
                          void* const _user_context,
                          const std::string& _user_id,
                          const AutoBuffer& _inbuffer,
                          const AutoBuffer& _extend,
                          int& _error_code,
+                         uint64_t& _flags,
                          const int _channel_select,
-                         unsigned short& server_sequence_id) = 0;
-    //任务执行结束
+                         uint16_t& server_sequence_id) = 0;
+    // 任务执行结束
     virtual int OnTaskEnd(uint32_t _taskid,
                           void* const _user_context,
                           const std::string& _user_id,
@@ -476,7 +507,7 @@ class Callback {
                           int _error_code,
                           const CgiProfile& _profile) = 0;
 
-    //上报网络连接状态
+    // 上报网络连接状态
     virtual void ReportConnectStatus(int _status, int _longlink_status) = 0;
     virtual void OnLongLinkNetworkError(ErrCmdType _err_type, int _err_code, const std::string& _ip, uint16_t _port) {
     }
@@ -489,12 +520,12 @@ class Callback {
 
     virtual void OnLongLinkStatusChange(int _status) {
     }
-    //长连信令校验 ECHECK_NOW = 0, ECHECK_NEXT = 1, ECHECK_NEVER = 2
+    // 长连信令校验 ECHECK_NOW = 0, ECHECK_NEXT = 1, ECHECK_NEVER = 2
     virtual int GetLonglinkIdentifyCheckBuffer(const std::string& _channel_id,
                                                AutoBuffer& _identify_buffer,
                                                AutoBuffer& _buffer_hash,
                                                int32_t& _cmdid) = 0;
-    //长连信令校验回包
+    // 长连信令校验回包
     virtual bool OnLonglinkIdentifyResponse(const std::string& _channel_id,
                                             const AutoBuffer& _response_buffer,
                                             const AutoBuffer& _identify_buffer_hash) = 0;
