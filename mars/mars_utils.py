@@ -343,6 +343,22 @@ def check_ndk_env():
     print("Error: make sure ndk's version >= r16b")
     return False
 
+def check_ohos_ndk_env():
+    try:
+        ndk_path = os.environ['OHOS_NDK_ROOT']
+    except KeyError:
+        print("Error: ndk does not exist or you do not set it into OHOS_NDK_ROOT.")
+        return False
+
+    if ndk_path is not None and ndk_path.strip():
+        print("ndk path:%s" % ndk_path)
+
+    if not ndk_path:
+        print("Error: ndk does not exist or you do not set it into OHOS_NDK_ROOT.")
+        return False
+
+    return True
+
 
 html_css = '''
 <style type="text/css">

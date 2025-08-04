@@ -13,7 +13,7 @@
 #elif defined(__WIN32__)
 #include <openssl/opensslconf-windows.h>
 #elif defined(__OHOS__)
-#include <openssl/opensslconf-harmony.h>
+//#include <openssl/opensslconf-harmony.h> ??? WHERE IS THIS HEADER FILE ???
 #else
 #error unsupported platform
 #endif

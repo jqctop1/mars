@@ -71,7 +71,8 @@ if(ANDROID)
     if(DEF_USE_CPP_CALLBACK)
         add_definitions(-DUSE_CPP_CALLBACK=1)
     endif()
-
+elseif(OHOS)
+    add_definitions(-DOHOS)
 elseif(APPLE)
 
     # for gen xcode project file
